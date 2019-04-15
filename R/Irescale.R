@@ -1,28 +1,29 @@
 #' @importFrom Rdpack reprompt
 #' @importFrom graphics plot points lines hist curve abline text
-#' @importFrom grDevices chull topo.colors
+#' @importFrom grDevices chull topo.colors colorRampPalette
 #' @importFrom stats dnorm sd quantile median
 #' @importFrom utils read.csv write.csv
 #' @importFrom sp Polygon
 #' @importFrom e1071 skewness kurtosis
-#' @importFrom grDevices colorRampPalette
+#' @importFrom ggplot2 ggplot geom_point geom_polygon aes scale_colour_gradient2 xlab ylab
 
 
 
-packages <- c("graphics", "rgeos", "sp", "stats", "e1071")
-if (length(setdiff(packages, rownames(installed.packages()))) > 0) {
-  install.packages(setdiff(packages, rownames(installed.packages())))
-}
+
+# packages <- c("sp", "e1071","ggplot2","Rdpack")
+# if (length(setdiff(packages, rownames(installed.packages()))) > 0) {
+#   install.packages(setdiff(packages, rownames(installed.packages())))
+# }
 
 
 library(graphics)
-library(rgeos)
+library(Rcpp)
 library(sp)
 library(stats)
 library(e1071)
-library(testthat)
-# library(ggplot2)
-# library(tidyverse)
+library(ggplot2)
+
+
 
 
 
@@ -313,11 +314,11 @@ convexHull <- function(X,varOfInterest){
   title="ConvexHull"
   rbPal <- colorRampPalette(c('red','blue'))
   colores<-topo.colors(10)
+  cl = colnames(X)
   if(!missing(varOfInterest)){
     title=colnames(varOfInterest)
     colores = rbPal(10)[as.numeric(cut(varOfInterest,breaks = 10))]
   }
-
   hpts <- chull(x = X[,1], y = X[,2])
   hpts <- c(hpts, hpts[1])
   xy.coords <- cbind(x = X[,1], y = X[,2])
@@ -325,11 +326,14 @@ convexHull <- function(X,varOfInterest){
   chull.poly <- Polygon(chull.coords, hole=F)
   chull.area <- chull.poly@area
   chull.centroid <- colMeans(chull.coords)
-  #chull.centroid <- colMeans(X)
-  # Define the scatterplot
-  plot(X, col =colores,main=title, pch=20,cex = 2)
-  points(chull.centroid,pch=13, col = "green", cex=3 )
-  lines(X[hpts, ])
+
+  p<-ggplot(X,aes(x=X[[1]],y=X[[2]]))+geom_point(aes(colour = varOfInterest))+scale_colour_gradient2(name=title,low = "red", high = "blue",mid="green", midpoint = mean(varOfInterest))
+  pol<-as.data.frame(chull.coords)
+  p<-p+geom_polygon(data=pol, aes(x=pol[[1]],pol[[2]]),alpha=0.2)+xlab(cl[1])+ylab(cl[2])
+  print(p)
+  # plot(X, col =colores,main=title, pch=20,cex = 2)
+  # points(chull.centroid,pch=13, col = "green", cex=3 )
+  # lines(X[hpts, ])
   return(list(area=chull.area,centroid=chull.centroid))
 }
 
@@ -374,7 +378,11 @@ calculatePvalue<-function(sample,value,mean){
 #' fileInput <- system.file("testdata", "chen.csv", package="Irescale")
 #' data <- loadFile(fileInput)
 #' scaledI<-rescaleI(data,1000)
-#' saveFile(paste(tempdir(),"output.csv"),scaledI)
+#' fn = file.path(tempdir(),"output.csv",fsep = .Platform$file.sep)
+#' saveFile(fn,scaledI)
+#' if (file.exists(fn)){
+#'     file.remove(fn)
+#' }
 saveFile<-function(fileName,results){
   rList<-data.frame()
   for(i in 1:length(results)){
@@ -677,9 +685,14 @@ return(results)
 #'@param times the number of times \code{rescaleI} will be executed. The default value is 100.
 #'@param samples size of the resampling method. The default value is 1000
 #'@param plots to draw the significance plot
+#'@param scalingUpTo the rescaling could be done up to the 0.01\% and 99.99\% quantile or max and min values. The two possible options are: "MaxMin", or "Quantile". The default value for this parameter is "Quantile"
 #'@return A vector with the average \eqn{\log(samples)} averages I
 #'@export buildStabilityTable
-buildStabilityTable<-function(data,times = 100, samples=1000, plots=TRUE){
+#'@examples
+#' fileInput <- system.file("testdata", "chen.csv", package="Irescale")
+#' data <- loadFile(fileInput)
+#' resultsChen<-buildStabilityTable(data=data,times=10,samples=100,plots=TRUE,scalingUpTo="Quantile")
+buildStabilityTable<-function(data,times = 10, samples=100, plots=TRUE,scalingUpTo ="Quantile"){
   results<-list()
   for(i in 1:dim(data$varOfInterest)[2]){
     temp1<-colnames(data$varOfInterest)[i]
@@ -701,10 +714,11 @@ buildStabilityTable<-function(data,times = 100, samples=1000, plots=TRUE){
       corrections<-NULL
       for(l in 1:log10(samples)){
         record$statsVI <- summaryVector(record$vI[1:10^l]) #this calculation is for 10,10^2....10^n
-        corrections<-cbind(corrections,iCorrection(record$I,record$vI[1:10^l])$newI)
+        corrections<-cbind(corrections,iCorrection(record$I,record$vI[1:10^l],scalingUpTo=scalingUpTo)$newI)
       }
       record$corrections<-rbind(record$corrections, corrections) # I only need NewMoransI not everything
     }
+    print(record$corrections)
     record$corrections<-colMeans(record$corrections)
     if(plots==TRUE){
       plot(record$corrections, main=temp1, type="b", xlab = "log(sample)", ylab="average I", xlim=c(0,log10(samples)+1))
@@ -716,13 +730,4 @@ buildStabilityTable<-function(data,times = 100, samples=1000, plots=TRUE){
 
 }
 
-#data<-loadFile("../inst/testdata/chen.csv")
-#buildSignificanceTable(data, samples=100000)
 
-
-# analysisI<-rescaleI("../../DataSets/Kiara/Kiara.csv")
-# saveFile("../../DataSets/Kiara/KiaraICalculations.csv",analysisI)
-
-
-#do a sensitivity analisys
-#means I by the number of iterations.

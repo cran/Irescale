@@ -18,5 +18,9 @@ saveFile(fileName, results)
 fileInput <- system.file("testdata", "chen.csv", package="Irescale")
 data <- loadFile(fileInput)
 scaledI<-rescaleI(data,1000)
-saveFile(paste(tempdir(),"output.csv"),scaledI)
+fn = file.path(tempdir(),"output.csv",fsep = .Platform$file.sep)
+saveFile(fn,scaledI)
+if (file.exists(fn)){
+    file.remove(fn)
+}
 }

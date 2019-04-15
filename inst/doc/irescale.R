@@ -107,6 +107,7 @@ pvalueIscaled<-calculatePvalue(corrections$scaledData,corrections$newI,correctio
 pvalueIscaled
 
 ## ------------------------------------------------------------------------
+library(Irescale)
 fileInput<-system.file("testdata", "chen.csv", package="Irescale")
 input<-loadFile(fileInput)
 resultsChen<-buildStabilityTable(data=input, times=100, samples=1000, plots=TRUE)

@@ -177,6 +177,7 @@ pvalueIscaled
 In order to determine how many iterations it is necessary to run the resampling method, it is possible to run a stability analysis. This function draw a chart in log scale (10^x) of the number of interations needed to achieve the stability in the Monte Carlo simulation.
 
 ```{r}
+library(Irescale)
 fileInput<-system.file("testdata", "chen.csv", package="Irescale")
 input<-loadFile(fileInput)
 resultsChen<-buildStabilityTable(data=input, times=100, samples=1000, plots=TRUE)

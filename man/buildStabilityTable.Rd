@@ -4,7 +4,8 @@
 \alias{buildStabilityTable}
 \title{Finds how many iterations are necessary to achieve stability in resampling method.}
 \usage{
-buildStabilityTable(data, times = 100, samples = 1000, plots = TRUE)
+buildStabilityTable(data, times = 10, samples = 100, plots = TRUE,
+  scalingUpTo = "Quantile")
 }
 \arguments{
 \item{data}{data structure after loading the file using \code{loadFile} function}
@@ -14,10 +15,17 @@ buildStabilityTable(data, times = 100, samples = 1000, plots = TRUE)
 \item{samples}{size of the resampling method. The default value is 1000}
 
 \item{plots}{to draw the significance plot}
+
+\item{scalingUpTo}{the rescaling could be done up to the 0.01\% and 99.99\% quantile or max and min values. The two possible options are: "MaxMin", or "Quantile". The default value for this parameter is "Quantile"}
 }
 \value{
 A vector with the average \eqn{\log(samples)} averages I
 }
 \description{
 \code{buildStabilityTable}  finds how many iterations are necessary to achieve stability in resampling method, plotting in a log scale.
+}
+\examples{
+fileInput <- system.file("testdata", "chen.csv", package="Irescale")
+data <- loadFile(fileInput)
+resultsChen<-buildStabilityTable(data=data,times=10,samples=100,plots=TRUE,scalingUpTo="Quantile")
 }
