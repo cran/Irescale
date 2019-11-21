@@ -20,7 +20,14 @@ knitr::opts_chunk$set(
 Many Geographical Analysis utilizes spatial autocorrelation, that allows us to study the geographical evolution from different points of view. One measurement for spatial autocorrelation is Moran's I, that is based on Pearson’s correlation coefficient in general statistics [@chen2009] 
 
 ## Performing the Analysis
-This package offers a  straight fordward to perform the whole analisys by using the function `rescaleI` which requires an input file with a specific format you can see it at [Loading data] section
+This package offers two ways to rectify Moran's I. The first method is a Procrustes method, and the second one is a rectifying through Pearson correlation. We provided a straight forward way to perform both techniques. 
+
+### Rectification method 1. Three-point anisometric scaling (3-PAS)
+invited every passer-by to spend the night. If the guess were too short, Procrustes would stretch him to fit, or If the guest proved too tall, Procrustes would amputate the excess length.  Keeping Procrustes's myth in mind, what this technique does is to stretch or cut as necessary to make the Moran's I null distribution to fit a Normal Curve, making the max and min or 99.99% - 0.1% quantile,  values to match. 
+
+The package offers, as stated before, a direct way to apply the Procrustes technique to a data set. The function `rescaleI` requires an input file path, the number of samples to create the null distribution, and a parameter that establishes up to which value the Moran's I value will be stretch.
+
+The [Loading data] section explains the required format of the input file. The parameter `scalingUpTo`  accepts two string values, "MaxMin" and "Quantile." The first value is self-explanatory, while the second one refers to the quantiles 0.1% and 99.99%. The default value is "Quantile", meaning that, if something different to "MaxMin" or "Quantile" is sent, the `iCorrection` function will apply "Quantile".
 
 ```{r whole_analysis}
 library(Irescale)
@@ -35,9 +42,26 @@ if (file.exists(fn))
 ```
 
 
+### Rectified Correlation 
+
+Three-point anisometric scaling (3-PAS) method of rectification eliminated negative bias and more closely approached the theoretical distribution of regular (Pearson, Spearman) correlations, hence intuitive expectations for such; however, distribution shape depended upon choice of critical percentiles and did not conform to intuitive expectations for Gaussian shape. These results inspired development of a second approach which mapped $ \tilde{I}$ values, based on their quantiles, to the theoretical values of regular correlations expected for each quantile. This latter method yielded perfectly repeatable null distributions that were Gauss-like but with definitive limits at $ \pm 1$
+
+```{r Rho Correction}
+fileInput <- system.file("testdata", "chen.csv", package="Irescale")
+data <- loadFile(fileInput)
+rectifiedI<-rectifyIrho(data,1000)
+fn = file.path(tempdir(),"output.csv",fsep = .Platform$file.sep)
+saveFile(fn,rectifiedI)
+if (file.exists(fn)) 
+  #Delete file if it exists
+  file.remove(fn)
+```
+
+
 
 ## Analysis Step by Step
-The analysis can be done following the steps
+The method rescaleI is a wrap for a pipeline that can be executed step by step.
+
 
 ###Loading data
 
@@ -122,7 +146,7 @@ fileInput<-system.file("testdata", "chen.csv", package="Irescale")
 input<-loadFile(fileInput)
 distM<-calculateEuclideanDistance(input$data)
 I<-calculateMoranI(distM = distM,varOfInterest = input$varOfInterest)
-vI<-resamplingI(1000,distM, input$varOfInterest) # This is the permutation
+vI<-resamplingI(distM, input$varOfInterest) # This is the permutation
 statsVI<-summaryVector(vI)
 statsVI
 ```
@@ -135,25 +159,37 @@ fileInput<-system.file("testdata", "chen.csv", package="Irescale")
 input<-loadFile(fileInput)
 distM<-calculateEuclideanDistance(input$data)
 I<-calculateMoranI(distM = distM,varOfInterest = input$varOfInterest)
-vI<-resamplingI(1000,distM, input$varOfInterest) # This is the permutation
+vI<-resamplingI(distM, input$varOfInterest) # This is the permutation
 statsVI<-summaryVector(vI)
 plotHistogramOverlayNormal(vI,statsVI, main=colnames(input$varOfInterest))
 ```
 
-### Rescaling I
+### Rectifying I 
 
 Once we have calculated the null distribution via resampling, you need to scale by centering and streching. The method `iCorrection`, return an object with the resampling vector rescaled, and all the summary for this vector, the new value of I is returned in a variable named `newI` 
 
+#### Rectification method 1. Three-point anisometric scaling (3-PAS)
+As a reminder there are two ways to rectify I, in this section we present the procrustes methodology.
 ```{r}
 library(Irescale)
 fileInput<-system.file("testdata", "chen.csv", package="Irescale")
 input<-loadFile(fileInput)
 distM<-calculateEuclideanDistance(input$data)
 I<-calculateMoranI(distM = distM,varOfInterest = input$varOfInterest)
-vI<-resamplingI(1000,distM, input$varOfInterest) # This is the permutation
+vI<-resamplingI(distM, input$varOfInterest) # This is the permutation
 statsVI<-summaryVector(vI)
 corrections<-iCorrection(I,vI)
 corrections$newI
+```
+
+#### Rectification method 2. Pearson Correlation 
+```{r}
+fileInput <- system.file("testdata", "chen.csv", package="Irescale")
+data <- loadFile(fileInput)
+distM<-calculateEuclideanDistance(data$data)
+vI<-resamplingI(distM,data$varOfInterest,n = 100000)
+rectifiedI<- ItoPearsonCorrelation(vI, length(data))
+rectifiedI$newI
 ```
 
 ##Calculate P-value
@@ -166,21 +202,28 @@ fileInput<-system.file("testdata", "chen.csv", package="Irescale")
 input<-loadFile(fileInput)
 distM<-calculateEuclideanDistance(input$data)
 I<-calculateMoranI(distM = distM,varOfInterest = input$varOfInterest)
-vI<-resamplingI(1000,distM, input$varOfInterest) # This is the permutation
+vI<-resamplingI(distM, input$varOfInterest) # This is the permutation
 statsVI<-summaryVector(vI)
 corrections<-iCorrection(I,vI)
 pvalueIscaled<-calculatePvalue(corrections$scaledData,corrections$newI,corrections$summaryScaledD$mean)
 pvalueIscaled
 ```
 
-##Stability Analysis
+## Stability Analysis
 In order to determine how many iterations it is necessary to run the resampling method, it is possible to run a stability analysis. This function draw a chart in log scale (10^x) of the number of interations needed to achieve the stability in the Monte Carlo simulation.
-
+### Rectifying to "Max-Min"
 ```{r}
 library(Irescale)
 fileInput<-system.file("testdata", "chen.csv", package="Irescale")
 input<-loadFile(fileInput)
-resultsChen<-buildStabilityTable(data=input, times=100, samples=1000, plots=TRUE)
+resultsChen<-buildStabilityTable(data=input, times=10, samples=10^2, plots=TRUE)
+```
+
+### Rectifying with correlation
+```{r}
+fileInput <- system.file("testdata", "chen.csv", package="Irescale")
+data <- loadFile(fileInput)
+resultsChen<-buildStabilityTableForCorrelation(data=data,times=10,samples=10^2,plots=TRUE)
 ```
 
 
